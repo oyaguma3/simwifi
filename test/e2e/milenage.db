@@ -1,0 +1,4 @@
+# hlrgw 用の加入者 DB（hlr_auc_gw と同じ書式）
+# IMSI Ki OPc AMF SQN
+# 3GPP TS 35.208 Test Set 19。AMF の分離ビット（0x8000）が立っているので EAP-AKA' にも使える
+555444333222111 5122250214c33e723a5dd523fc145fc0 981d464c7c52eb6e5036234984ad0bcf c3ab 000000001000

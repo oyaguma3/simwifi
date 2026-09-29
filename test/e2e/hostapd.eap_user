@@ -1,0 +1,3 @@
+# 永久 ID の先頭 1 文字で EAP メソッドを決める（0: EAP-AKA、6: EAP-AKA'）
+"0"*	AKA
+"6"*	AKA'

@@ -1,0 +1,11 @@
+# /etc/logrotate.d/simwifi
+# simwifi はログファイルを開いたまま書き続けるため copytruncate を使う
+/var/log/simwifi/*.log {
+	weekly
+	rotate 8
+	compress
+	delaycompress
+	missingok
+	notifempty
+	copytruncate
+}

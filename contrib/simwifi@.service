@@ -1,0 +1,28 @@
+# simwifi のテンプレートユニット（%i = 無線 LAN インターフェース）
+#   設定: /etc/simwifi/<iface>.env（contrib/simwifi.env.example を参照）
+#   起動: systemctl enable --now simwifi@wlan0
+#   ログ: journalctl -u simwifi@wlan0 -f
+[Unit]
+Description=simwifi EAP-AKA supplicant bridge on %i
+Wants=ModemManager.service wpa_supplicant.service
+After=ModemManager.service wpa_supplicant.service
+
+[Service]
+Type=simple
+EnvironmentFile=/etc/simwifi/%i.env
+ExecStart=/usr/local/bin/simwifi connect --iface %i --ssid ${SSID} --method ${METHOD} --exec-up ${EXEC_UP} --exec-down ${EXEC_DOWN} --log-file /var/log/simwifi/%i.log $SIMWIFI_OPTS
+Restart=on-failure
+RestartSec=10
+RuntimeDirectory=simwifi
+RuntimeDirectoryPreserve=yes
+RuntimeDirectoryMode=0700
+LogsDirectory=simwifi
+LogsDirectoryMode=0700
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+NoNewPrivileges=yes
+CapabilityBoundingSet=CAP_NET_ADMIN CAP_NET_RAW
+
+[Install]
+WantedBy=multi-user.target
