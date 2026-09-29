@@ -22,8 +22,18 @@ jobs:
         run: |
           go vet ./...
           go vet -tags e2e ./...
-      - name: Staticcheck
-        run: go run honnef.co/go/tools/cmd/staticcheck@v0.8.1 ./...
+      - name: golangci-lint
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          # ジョブの Go（go.mod の版）でビルドさせる。ビルド済みバイナリの Go が古いと解析できないため
+          install-mode: goinstall
+      - name: golangci-lint (e2e build)
+        uses: golangci/golangci-lint-action@v9
+        with:
+          version: v2.14.0
+          install-mode: goinstall
+          args: --build-tags e2e
       - name: Test
         run: |
           go test -race ./...

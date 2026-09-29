@@ -1,0 +1,18 @@
+version: "2"
+
+linters:
+  # errcheck, govet, ineffassign, staticcheck, unused
+  default: standard
+  settings:
+    errcheck:
+      exclude-functions:
+        # ロック解放の失敗は defer の後始末で扱いようがない（close で flock も外れる）
+        - (*github.com/oyaguma3/simwifi/internal/lock.Lock).Release
+  exclusions:
+    presets:
+      # 後始末の Close / Flush / os.Remove、fmt.Fprint* の戻り値の無視を許す
+      - std-error-handling
+
+formatters:
+  enable:
+    - gofmt

@@ -44,7 +44,11 @@ func TestRoundTrip(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	go serve(conn, h)
+	go func() {
+		if err := serve(conn, h); err != nil {
+			t.Errorf("serve: %v", err)
+		}
+	}()
 	defer conn.Close()
 
 	// hostapd と同じく、自分のソケットを bind してから送る
