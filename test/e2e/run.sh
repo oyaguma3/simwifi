@@ -52,7 +52,8 @@ LOADED_HWSIM=1
 sleep 2
 IFACES=()
 for d in /sys/class/net/*; do
-	if readlink -f "$d/device" 2>/dev/null | grep -q hwsim; then
+	# hwsim0（監視用の radiotap インターフェース）は無線 LAN ではないので除く
+	if [ -e "$d/phy80211" ] && readlink -f "$d/device" 2>/dev/null | grep -q hwsim; then
 		IFACES+=("$(basename "$d")")
 	fi
 done

@@ -36,7 +36,7 @@ func runConnect(ctx context.Context, env *Env, common *commonFlags, o *connectOp
 	}
 	defer lk.Release()
 
-	sys, err := openSystem(log)
+	sys, err := openSystem(env.Base)
 	if err != nil {
 		return err
 	}
@@ -74,14 +74,14 @@ func runConnect(ctx context.Context, env *Env, common *commonFlags, o *connectOp
 		if _, err := c.DeviceCaps(ctx); err != nil {
 			return withCode(CodePrecondition, fmt.Errorf("MBIM device check: %w", err))
 		}
-		aka, uicc := mbimaka.New(c, log), mbimuicc.New(c, log)
+		aka, uicc := mbimaka.New(c, env.Base), mbimuicc.New(c, env.Base)
 		switch o.authPath {
 		case "aka":
 			auth = aka
 		case "uicc":
 			auth = uicc
 		default:
-			auth = simauth.NewAuto(aka, uicc, r.Probe.AKAUnsupported(), log)
+			auth = simauth.NewAuto(aka, uicc, r.Probe.AKAUnsupported(), env.Base)
 		}
 	}
 

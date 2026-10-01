@@ -289,10 +289,10 @@ func collectModem(ctx context.Context, d Deps, o Options, r *Report) {
 		r.info(CheckProbe, "not run yet (run 'simwifi probe')")
 	case pr.NoPath():
 		r.Probe = pr
-		r.fatal(CheckProbe, "modem supports neither MBIM AKA nor UICC low-level access (probed %s)", pr.Time.Format("2006-01-02 15:04"))
+		r.fatal(CheckProbe, "modem supports neither MBIM AKA nor UICC low-level access (probed %s)", pr.Time.Local().Format("2006-01-02 15:04"))
 	default:
 		r.Probe = pr
-		r.info(CheckProbe, "AKA %s, UICC %s (probed %s)", pr.AKA.State, pr.UICC.State, pr.Time.Format("2006-01-02 15:04"))
+		r.info(CheckProbe, "AKA %s, UICC %s (probed %s)", pr.AKA.State, pr.UICC.State, pr.Time.Local().Format("2006-01-02 15:04"))
 	}
 }
 

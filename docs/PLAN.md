@@ -14,10 +14,22 @@
 
 ---
 
-## 進捗（2026-09-30 時点）
+## 進捗（2026-10-02 時点）
 
 | # | 状態 | メモ |
 |---|---|---|
+| M0 | 完了 | スパイク S1〜S6 すべて合格（docs/SPIKE.md） |
+| M1 | 完了 | Milenage は TS 35.208 の全 20 テストセットで一致 |
+| M2 | 完了 | fake mbim-proxy で検証。`mbimuicc` と経路の自動選択（`simauth.Auto`）も前倒しで実装 |
+| M3 | 完了 | 実機で `status` / `probe` を確認（Quectel EG25-G は MBIM AKA・UICC の両経路に対応） |
+| M4 | 完了 | fake wpa_supplicant を相手に `connect` 全体を 1 プロセス内で通す統合テストあり |
+| M5 | 完了 | ミニ PC で E2E 6 シナリオすべて合格（2026-10-02） |
+| M6 | 一部完了 | `mbimuicc` は実装済み。実 SIM と実 AP での接続テストは、EAP-AKA 用 AP の準備待ち |
+| M7 | 一部完了 | `contrib/`、README は作成済み。リリースワークフローは未 |
+
+残り: 実 SIM と実 AP での接続（AKA / AKA' / 再認証 / AUTS、`--auth-path uicc`）、`docs/COMPAT.md` の更新、リリースワークフロー。
+
+---|---|---|
 | M0 | 一部完了 | リポジトリ雛形・CI・Makefile は完了。スパイクは S5 / S6 をソースで確認済み、S1〜S4 はミニ PC 待ち（docs/SPIKE.md） |
 | M1 | 完了 | Milenage は TS 35.208 の全 20 テストセットで一致 |
 | M2 | 完了 | fake mbim-proxy で検証。`mbimuicc` と経路の自動選択（`simauth.Auto`）も前倒しで実装 |
@@ -170,12 +182,12 @@ S1 は PoC サーバーの AP、または M5 の hwsim 環境を先に作って�
 
 SIM・ドングル・実 AP なしで、wpa_supplicant との連携を自動テストする。
 
-- [ ] 実機のミニ PC（Debian 13 の標準カーネルに `mac80211_hwsim` がある。VM は不要）
+- [x] 実機のミニ PC（Debian 13 の標準カーネルに `mac80211_hwsim` がある。VM は不要）
   - `modprobe mac80211_hwsim radios=2`（実 wlan とは別の `wlanN` ができる。テスト後に `rmmod`）
   - hostapd: WPA-EAP、`eap_server=1`、`eap_sim_db=unix:…`、EAP-AKA / AKA' のユーザー定義
   - `hlr_auc_gw -m milenage.db`（K/OPc/AMF/SQN を定義。AKA' 用に AMF の分離ビットを ON）
 - [x] simwifi 側に開発用バックエンドを追加（DESIGN §6.1、D23）: ビルドタグ `e2e` で `--auth-backend milenage` を有効にし、MM / mbim のチェックを省く
-- [ ] シナリオ: AKA 接続、AKA' 接続、AUTS（milenage.db の SQN をずらす）、WPA3（`WPA-EAP-SHA256` + PMF）、再認証、Ctrl-C で後始末
+- [x] シナリオ: AKA 接続、AKA' 接続、AUTS（USIM 側の SQN を進めておく）、MAC 不正、異常終了からの回復、WPA3（`WPA-EAP-SHA256` + PMF）、Ctrl-C で後始末。再認証は実 AP のテスト（M6）で確認する
 - [x] `test/e2e/run.sh` にまとめ、手元で 1 コマンドで再実行できるようにする
 
 **完了条件**: 上記シナリオがミニ PC 上で自動で通る。

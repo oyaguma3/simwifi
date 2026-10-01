@@ -18,7 +18,8 @@ import (
 type Env struct {
 	Stdout io.Writer
 	Stderr io.Writer
-	Log    *slog.Logger
+	Log    *slog.Logger // component=cli 付き。cli 自身のログ用
+	Base   *slog.Logger // component 無し。サブシステム（自分で component を付ける）に渡す
 }
 
 // command はサブコマンドの定義。
@@ -118,7 +119,7 @@ func Run(ctx context.Context, args []string, stdout, stderr io.Writer) int {
 	}
 	defer closer.Close()
 
-	env := &Env{Stdout: stdout, Stderr: stderr, Log: logger.With("component", "cli")}
+	env := &Env{Stdout: stdout, Stderr: stderr, Log: logger.With("component", "cli"), Base: logger}
 	if err := run(ctx, env); err != nil {
 		code := codeOf(err)
 		logger.Error(err.Error(), "component", "cli", "exit_code", int(code))

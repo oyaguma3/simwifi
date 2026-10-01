@@ -27,7 +27,7 @@ var statusCommand = command{
 			if err != nil {
 				return withCode(CodeError, err)
 			}
-			sys, err := openSystem(env.Log)
+			sys, err := openSystem(env.Base)
 			if err != nil {
 				return err
 			}
@@ -61,7 +61,7 @@ var probeCommand = command{
 			if uid := geteuid(); uid != 0 {
 				return exitf(CodePrecondition, "probe must run as root (mbim-proxy only accepts root)")
 			}
-			sys, err := openSystem(env.Log)
+			sys, err := openSystem(env.Base)
 			if err != nil {
 				return err
 			}
@@ -151,7 +151,7 @@ var identityCommand = command{
 			if err != nil {
 				return withCode(CodeError, err)
 			}
-			sys, err := openSystem(env.Log)
+			sys, err := openSystem(env.Base)
 			if err != nil {
 				return err
 			}
