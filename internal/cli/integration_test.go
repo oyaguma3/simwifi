@@ -40,7 +40,8 @@ type world struct {
 
 type worldOptions struct {
 	aka       bool           // モデムが MBIM AKA に対応
-	brokenAKA bool           // MBIM AKA が正しい AUTN も拒否する（Quectel EG25-G の挙動）
+	brokenAKA bool           // MBIM AKA が正しい AUTN も拒否する
+	revAKA    bool           // MBIM AKA が値を逆順で扱う（Qualcomm 系の実機の挙動）
 	uicc      *mbimtest.UICC // UICC Low-Level Access（nil なら非対応）
 	spec      *mmtest.ModemSpec
 }
@@ -68,6 +69,9 @@ func newWorld(t *testing.T, o worldOptions) *world {
 	})
 	if o.aka {
 		mbimtest.HandleAKA(w.proxy, usim, mbimtest.ResyncInSuccess)
+	}
+	if o.revAKA {
+		mbimtest.HandleAKAReversed(w.proxy, usim, mbimtest.ResyncInSuccess)
 	}
 	if o.brokenAKA {
 		w.proxy.Handle(mbim.ServiceAuth, mbim.CIDAuthAKA, func(mbimtest.Request) mbimtest.Response {
@@ -165,6 +169,7 @@ func TestConnectEndToEnd(t *testing.T) {
 		{"auto falls back to uicc", worldOptions{uicc: &mbimtest.UICC{AppList: true}}, nil},
 		{"forced uicc", worldOptions{aka: true, uicc: &mbimtest.UICC{}}, []string{"--auth-path", "uicc"}},
 		{"auto cross-checks a broken mbim aka", worldOptions{brokenAKA: true, uicc: &mbimtest.UICC{}}, nil},
+		{"qualcomm byte order without uicc", worldOptions{revAKA: true}, nil},
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			w := newWorld(t, tt.o)

@@ -27,9 +27,11 @@
 | M6 | 完了 | 複数スロットの切替は対象機が単一スロットのため未実施。実 SIM と実 AP で EAP-AKA / AKA' の接続、再認証、再同期（AUTS）に成功。EG25-G の MBIM AKA は正しい AUTN も拒否するため、自動経路が UICC で確かめ直して切り替える |
 | M7 | 完了 | `contrib/`、README、リリースワークフロー。2026-10-02 に PoC として v0.1.0 をリリース |
 
-残り（PoC の範囲外）: Linux で MBIM AKA が正しいチャレンジを拒否する原因の特定（Windows のドライバの初期化手順との比較）、QMI 経由の UICC 経路（EM7455 のように MBIM の UICC 経路を持たないモデム向け）。
+Onyx（Quectel EG25-G）でも、バイト順の修正で MBIM AKA による EAP-AKA / AKA' の接続に成功した。
 
-追加検証（2026-10-02）: Sierra Wireless EM7455（M.2 SIM スロット付き USB アダプタ）でも試験した。MBIM AKA は正しいチャレンジを拒否し、UICC 経路も無いため接続できなかった。Windows では同じ機材で EAP-AKA が通るので、原因の切り分けを進めたが（docs/COMPAT.md）、特定できないまま PoC としては区切った。この過程で、SIM-PIN2 の誤判定、空きスロットへの切り替え、切り替え失敗時の説明不足の 3 点を直した。
+残り: 修正版のリリース（v0.1.1）。PoC の範囲外: QMI 経由の UICC 経路。
+
+追加検証（2026-10-02）: Sierra Wireless EM7455（M.2 SIM スロット付き USB アダプタ）でも試験した。当初は MBIM AKA が正しいチャレンジを拒否したが、v0.1.0 のリリース後に Windows の USB 通信の記録を解析し、Qualcomm 系の MBIM AKA が値を逆順で扱うことを突き止めた。simwifi でバイト順を自動判別するよう直し、EM7455 で EAP-AKA / AKA' の接続に成功した（docs/COMPAT.md）。この過程で、SIM-PIN2 の誤判定、空きスロットへの切り替え、切り替え失敗時の説明不足の 3 点を直した。
 
 ---
 

@@ -274,6 +274,13 @@ func (r *Result) Clear()
 | `milenage` | ソフトウェア実装（K / OPc / SQN を指定） | 単体テスト、fake proxy、E2E 用。stdlib の `crypto/aes` だけで完結する。リリースバイナリの connect からは選べない（§6.1 `--auth-backend`） |
 | `auto` | `mbimaka` → `mbimuicc` | 既定。下記「経路の自動選択」参照 |
 
+**`mbimaka` のバイト順**
+
+Qualcomm 系のモデム（Quectel EG25-G、Sierra EM7455 で確認）は、AKA の値を 128 ビットのリトルエンディアン整数として扱う。RAND / AUTN を逆順で受け取り、RES / CK / IK / AUTS を逆順で返す（RES はゼロ拡張した整数として、先頭 `ResLen` バイトに逆順で入る）。Windows のドライバも逆順で渡している（docs/COMPAT.md）。3GPP の並びのまま送ると、正しいチャレンジでも `AUTH_INCORRECT_AUTN` で拒否される。
+
+- バイト順が分かっていなければ、逆順 → 3GPP の並びの順に試す。成功（または同期失敗）した順を覚え、そのプロセスでは以後その順だけを使う
+- 両方の順で拒否されたら、本当の拒否（`ErrAuthReject`）として扱う。AUTN を拒否した USIM の状態は変わらないので、試し直しは無害
+
 **`mbimaka` の Status 正規化**
 
 | MBIM の応答 | 正規化後 |

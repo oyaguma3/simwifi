@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"slices"
 	"sync"
 
 	"github.com/oyaguma3/simwifi/internal/mbim"
@@ -25,26 +26,43 @@ const (
 	ResyncAsStatusNoBuffer
 )
 
-// HandleAKA は Auth AKA CID を auth で処理するハンドラを登録する。
+// HandleAKA は Auth AKA CID を auth で処理するハンドラを登録する（3GPP の並びのモデム）。
 func HandleAKA(s *Server, auth simauth.Authenticator, mode AKAMode) {
+	handleAKA(s, auth, mode, false)
+}
+
+// HandleAKAReversed は、値を 128 ビットのリトルエンディアン整数として扱う
+// Qualcomm 型のモデムを模擬する。RAND / AUTN を逆順で受け取り、RES / CK / IK / AUTS を逆順で返す。
+func HandleAKAReversed(s *Server, auth simauth.Authenticator, mode AKAMode) {
+	handleAKA(s, auth, mode, true)
+}
+
+func handleAKA(s *Server, auth simauth.Authenticator, mode AKAMode, reversed bool) {
+	rev := func(b []byte) []byte {
+		out := append([]byte(nil), b...)
+		if reversed {
+			slices.Reverse(out)
+		}
+		return out
+	}
 	s.Handle(mbim.ServiceAuth, mbim.CIDAuthAKA, func(r Request) Response {
 		d := mbim.NewDecoder(r.Buffer)
 		rand, autn := d.Fixed(16), d.Fixed(16)
 		if r.Type != mbim.Query || d.Err() != nil {
 			return Response{Status: mbim.StatusInvalidParameters}
 		}
-		res, err := auth.Authenticate(context.Background(), rand, autn)
+		res, err := auth.Authenticate(context.Background(), rev(rand), rev(autn))
 		switch {
 		case err == nil:
-			return Response{Buffer: akaResponse(res.RES, res.CK[:], res.IK[:], nil)}
+			return Response{Buffer: akaResponse(rev(res.RES), rev(res.CK[:]), rev(res.IK[:]), nil)}
 		case errors.Is(err, simauth.ErrResync):
 			switch mode {
 			case ResyncAsStatus:
-				return Response{Status: mbim.StatusAuthSyncFailure, Buffer: akaResponse(nil, nil, nil, res.AUTS)}
+				return Response{Status: mbim.StatusAuthSyncFailure, Buffer: akaResponse(nil, nil, nil, rev(res.AUTS))}
 			case ResyncAsStatusNoBuffer:
 				return Response{Status: mbim.StatusAuthSyncFailure}
 			}
-			return Response{Buffer: akaResponse(nil, nil, nil, res.AUTS)}
+			return Response{Buffer: akaResponse(nil, nil, nil, rev(res.AUTS))}
 		case errors.Is(err, simauth.ErrAuthReject):
 			return Response{Status: mbim.StatusAuthIncorrectAUTN}
 		}

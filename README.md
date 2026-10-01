@@ -6,7 +6,7 @@ EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が
 
 > **ステータス: PoC**。Soracom Onyx（Quectel EG25-G）と Debian 13 の実機で、EAP-AKA / AKA' の接続・再認証・再同期を確認済み（[docs/COMPAT.md](docs/COMPAT.md)）。
 >
-> 既知の制限: 試した 2 機種（Quectel EG25-G、Sierra Wireless EM7455）とも、Linux では MBIM の AKA コマンドが正しいチャレンジを拒否した（原因は未特定）。EG25-G は UICC Low-Level Access の経路で動作するが、この経路を持たない EM7455 は使えない。
+> Sierra Wireless EM7455 でも、MBIM の AKA コマンドで EAP-AKA / AKA' の接続を確認済み。Qualcomm 系のモデムは AKA の値を逆順（128 ビットのリトルエンディアン）で扱うため、simwifi はバイト順を自動で判別する。
 
 ## 仕組み
 
@@ -14,7 +14,7 @@ EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が
 AAA ─ AP ─ wlan0 ─ wpa_supplicant ─(D-Bus: NetworkRequest "SIM")─ simwifi ─ mbim-proxy ─ MBIM ドングル ─ USIM
 ```
 
-- USIM への経路は MBIM の Auth `AKA` CID が主経路。非対応のモデムや、`AKA` CID が正しく動かないモデム（Quectel EG25-G など）では、MS UICC Low-Level Access（論理チャネル上の APDU）に自動で切り替える
+- USIM への経路は MBIM の Auth `AKA` CID が主経路（値のバイト順はモデムごとに自動で判別する）。`AKA` CID が使えないモデムでは、MS UICC Low-Level Access（論理チャネル上の APDU）に自動で切り替える
 - 詳細は [docs/DESIGN.md](docs/DESIGN.md)
 
 ## 前提
