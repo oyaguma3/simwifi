@@ -21,25 +21,13 @@
 | M0 | 完了 | スパイク S1〜S6 すべて合格（docs/SPIKE.md） |
 | M1 | 完了 | Milenage は TS 35.208 の全 20 テストセットで一致 |
 | M2 | 完了 | fake mbim-proxy で検証。`mbimuicc` と経路の自動選択（`simauth.Auto`）も前倒しで実装 |
-| M3 | 完了 | 実機で `status` / `probe` を確認（Quectel EG25-G は MBIM AKA・UICC の両経路に対応） |
+| M3 | 完了 | 実機で `status` / `probe` を確認 |
 | M4 | 完了 | fake wpa_supplicant を相手に `connect` 全体を 1 プロセス内で通す統合テストあり |
 | M5 | 完了 | ミニ PC で E2E 6 シナリオすべて合格（2026-10-02） |
-| M6 | 一部完了 | `mbimuicc` は実装済み。実 SIM と実 AP での接続テストは、EAP-AKA 用 AP の準備待ち |
+| M6 | 完了 | 複数スロットの切替は対象機が単一スロットのため未実施。実 SIM と実 AP で EAP-AKA / AKA' の接続、再認証、再同期（AUTS）に成功。EG25-G の MBIM AKA は正しい AUTN も拒否するため、自動経路が UICC で確かめ直して切り替える |
 | M7 | 一部完了 | `contrib/`、README は作成済み。リリースワークフローは未 |
 
-残り: 実 SIM と実 AP での接続（AKA / AKA' / 再認証 / AUTS、`--auth-path uicc`）、`docs/COMPAT.md` の更新、リリースワークフロー。
-
----|---|---|
-| M0 | 一部完了 | リポジトリ雛形・CI・Makefile は完了。スパイクは S5 / S6 をソースで確認済み、S1〜S4 はミニ PC 待ち（docs/SPIKE.md） |
-| M1 | 完了 | Milenage は TS 35.208 の全 20 テストセットで一致 |
-| M2 | 完了 | fake mbim-proxy で検証。`mbimuicc` と経路の自動選択（`simauth.Auto`）も前倒しで実装 |
-| M3 | コード完了 | fake ModemManager（プライベート D-Bus）で検証。実機確認は未 |
-| M4 | 完了 | fake wpa_supplicant を相手に `connect` 全体を 1 プロセス内で通す統合テストあり |
-| M5 | 準備完了 | `test/e2e/run.sh` と hlr_auc_gw 代替の `hlrgw` を作成。ミニ PC での実行は未 |
-| M6 | 一部完了 | `mbimuicc` は実装済み（fake で検証）。実機検証と `docs/COMPAT.md` は未 |
-| M7 | 一部完了 | `contrib/`、README は作成済み。リリースワークフローは未 |
-
-未検証の前提（実機で最初に確かめること）: Debian 13 の wpa_supplicant が AKA / AKA' を有効にしているか（S2）、Debian の hostapd が EAP-AKA サーバーを有効にしているか（M5）、ドングルの AKA / UICC 対応（S4）。
+残り: リリースワークフロー（M7）。
 
 ---
 
@@ -194,8 +182,8 @@ SIM・ドングル・実 AP なしで、wpa_supplicant との連携を自動テ�
 
 ### M6: 実機検証と UICC 予備経路
 
-- [ ] §12.2 の実機手順: `status` → `probe` → `connect --method aka` → `--method akap` → 再認証 → AUTS
-- [ ] `--sim-slot` / `--switch-slot` の実機確認（切替後の再出現待ちと、そのタイムアウト）
+- [x] §12.2 の実機手順: `status` → `probe` → `connect --method aka` → `--method akap` → 再認証 → AUTS
+- [ ] `--sim-slot` / `--switch-slot` の実機確認（切替後の再出現待ちと、そのタイムアウト）。Soracom Onyx（EG25-G）は単一スロットのため実機では未実施。fake ModemManager の統合テストでのみ確認
 - [x] `internal/simauth/mbimuicc`
   - USIM AID の取得（MS UICC Low-Level Access の `APPLICATION_LIST`、または EF_DIR）→ `OPEN_CHANNEL`
   - `APDU`: `AUTHENTICATE`（CLA は論理チャネル番号を反映、INS 0x88、P1 0x00、P2 0x81、データ `10‖RAND‖10‖AUTN`）
@@ -203,7 +191,7 @@ SIM・ドングル・実 AP なしで、wpa_supplicant との連携を自動テ�
   - `CLOSE_CHANNEL`。エラー時も必ず閉じる
   - fake proxy でテストする
   - 手持ちドングルが `AUTH_AKA` に対応していれば、実機確認は UICC 経路を強制するフラグ（`--auth-path uicc` 等）で行う
-- [ ] `docs/COMPAT.md`: モデム型番、FW、`AUTH_AKA` 可否、UICC APDU 可否、返った Status の癖
+- [x] `docs/COMPAT.md`: モデム型番、FW、`AUTH_AKA` 可否、UICC APDU 可否、返った Status の癖
 
 **完了条件**: 実機で AKA / AKA' / AUTS が成功し、COMPAT.md に 1 機種以上記録されている。
 

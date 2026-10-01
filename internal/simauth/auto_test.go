@@ -19,7 +19,10 @@ func (f *fakeAuth) Name() string { return f.name }
 func (f *fakeAuth) Authenticate(_ context.Context, rand, _ []byte) (Result, error) {
 	f.calls++
 	f.rand = rand
-	if f.err != nil {
+	switch {
+	case errors.Is(f.err, ErrResync):
+		return Result{AUTS: bytes.Repeat([]byte{0xaa}, 14)}, f.err
+	case f.err != nil:
 		return Result{}, f.err
 	}
 	return Result{RES: []byte{1, 2, 3, 4}}, nil
@@ -50,7 +53,7 @@ func TestAutoFallback(t *testing.T) {
 }
 
 func TestAutoNoFallbackOnOtherErrors(t *testing.T) {
-	for _, e := range []error{ErrAuthReject, ErrResync, errors.New("busy")} {
+	for _, e := range []error{ErrResync, errors.New("busy")} {
 		primary := &fakeAuth{name: "aka", err: e}
 		fallback := &fakeAuth{name: "uicc"}
 		a := NewAuto(primary, fallback, false, nil)
@@ -60,6 +63,56 @@ func TestAutoNoFallbackOnOtherErrors(t *testing.T) {
 		if fallback.calls != 0 || a.Name() != "aka" {
 			t.Fatalf("%v: must not switch", e)
 		}
+	}
+}
+
+// MBIM AKA が正しい AUTN も拒否するモデム（Quectel EG25-G）への対応。
+func TestAutoRejectCrossCheck(t *testing.T) {
+	for _, tt := range []struct {
+		name        string
+		fallbackErr error
+		wantErr     error // nil なら成功
+		wantSwitch  bool
+	}{
+		{"fallback accepts", nil, nil, true},
+		{"fallback resyncs", ErrResync, ErrResync, true},
+		{"fallback also rejects", ErrAuthReject, ErrAuthReject, false},
+		{"fallback unsupported", ErrUnsupported, ErrAuthReject, false},
+		{"fallback errors", errors.New("timeout"), ErrAuthReject, false},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			primary := &fakeAuth{name: "aka", err: ErrAuthReject}
+			fallback := &fakeAuth{name: "uicc", err: tt.fallbackErr}
+			a := NewAuto(primary, fallback, false, nil)
+			rand := bytes.Repeat([]byte{9}, 16)
+
+			r, err := a.Authenticate(t.Context(), rand, make([]byte, 16))
+			if tt.wantErr == nil && err != nil || tt.wantErr != nil && !errors.Is(err, tt.wantErr) {
+				t.Fatalf("err = %v, want %v", err, tt.wantErr)
+			}
+			if fallback.calls != 1 || !bytes.Equal(fallback.rand, rand) {
+				t.Fatalf("fallback must be tried once with the same RAND (calls=%d)", fallback.calls)
+			}
+			switch {
+			case tt.wantErr == nil && len(r.RES) != 4:
+				t.Fatalf("result from fallback not returned: %+v", r)
+			case errors.Is(tt.wantErr, ErrResync) && len(r.AUTS) != 14:
+				t.Fatalf("AUTS from fallback not returned: %+v", r)
+			}
+			if got := a.Name() == "uicc"; got != tt.wantSwitch {
+				t.Fatalf("switched = %v, want %v", got, tt.wantSwitch)
+			}
+
+			// 2 回目: 切り替え後は fallback だけ、切り替えなければ両方を再び試す
+			_, _ = a.Authenticate(t.Context(), rand, make([]byte, 16))
+			wantPrimary := 2
+			if tt.wantSwitch {
+				wantPrimary = 1
+			}
+			if primary.calls != wantPrimary || fallback.calls != 2 {
+				t.Fatalf("second call: primary=%d fallback=%d", primary.calls, fallback.calls)
+			}
+		})
 	}
 }
 

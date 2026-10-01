@@ -404,3 +404,24 @@ func TestSessionReconnectHooks(t *testing.T) {
 		t.Errorf("hooks = %v, want %v", got, want)
 	}
 }
+
+func TestSessionReauthKeepsUp(t *testing.T) {
+	h := newHarness(t, nil, 5*time.Second)
+	h.start()
+	h.event(supplicant.Event{Kind: supplicant.EventState, State: "completed"})
+	// 再認証と鍵交換（実機の EAP-AKA' 再認証で観測した遷移）
+	h.event(supplicant.Event{Kind: supplicant.EventEAP, EAPStatus: "started"})
+	h.challenge(0x101, false)
+	h.event(supplicant.Event{Kind: supplicant.EventEAP, EAPStatus: "completion", EAPParameter: "success"})
+	h.event(supplicant.Event{Kind: supplicant.EventState, State: "4way_handshake"})
+	h.event(supplicant.Event{Kind: supplicant.EventState, State: "completed"})
+	h.event(supplicant.Event{Kind: supplicant.EventState, State: "group_handshake"})
+	h.event(supplicant.Event{Kind: supplicant.EventState, State: "completed"})
+	h.cancel()
+	if err := h.wait(); err != nil {
+		t.Fatal(err)
+	}
+	if got := h.hooks.get(); !slices.Equal(got, []string{"up:up-cmd", "down:down-cmd"}) {
+		t.Errorf("hooks = %v, want a single up/down pair", got)
+	}
+}

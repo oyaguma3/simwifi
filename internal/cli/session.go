@@ -159,7 +159,8 @@ func (s *session) handleEvent(ev supplicant.Event, timer *time.Timer) error {
 		}
 	case supplicant.EventState:
 		s.log.Debug("wpa_supplicant state", "state", ev.State)
-		if ev.State == "completed" {
+		switch {
+		case ev.State == "completed":
 			if !s.connected {
 				timer.Stop()
 			}
@@ -170,7 +171,9 @@ func (s *session) handleEvent(ev supplicant.Event, timer *time.Timer) error {
 				s.up = true
 				s.hooks.fire("up")
 			}
-		} else if s.up {
+		case s.up && (ev.State == "4way_handshake" || ev.State == "group_handshake"):
+			// 再認証や鍵の更新の途中。アソシエーションは保たれているので切断とはみなさない
+		case s.up:
 			s.log.Warn("connection lost", "state", ev.State)
 			s.up = false
 			s.hooks.fire("down")

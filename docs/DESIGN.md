@@ -306,6 +306,9 @@ func (r *Result) Clear()
 
 - 直近の probe 結果（§6.3）があり、`AKA` 非対応と記録されていれば、最初から `mbimuicc` を使う
 - それ以外は `mbimaka` を使う。最初の要求で `ErrUnsupported` が返ったら `mbimuicc` に切り替え、**同じ RAND / AUTN で再実行する**。以後はそのプロセス内で `mbimuicc` を使い続ける
+- `mbimaka` が `ErrAuthReject` を返した場合も、**同じ RAND / AUTN を `mbimuicc` で確かめる**。`mbimuicc` が受理（または同期失敗）すれば `mbimaka` は信用できないとみなし、その結果を返して以後は `mbimuicc` に切り替える。`mbimuicc` も拒否した場合、または使えない場合は、拒否として扱う
+  - 正しい AUTN も `AUTH_INCORRECT_AUTN` で拒否する MBIM AKA の実装がある（Quectel EG25-G。docs/COMPAT.md）。`probe` はダミー AUTN しか使わないので、この不具合を事前に検出できない
+  - AUTN を拒否した USIM の状態（SQN）は変わらないので、確かめ直しは無害
 - `--auth-path aka|uicc` を指定すれば経路を固定できる（実機検証用）
 
 ### 4.4 `internal/modem`
@@ -495,6 +498,7 @@ IMSI から NAI を生成して表示するだけ。`--method` と `--realm` を
      EAP "completion" + "failure"  → そのセッションを失敗として記録（認証失敗カウンタはセッションにつき 1 回だけ加算。§7.2）
      State == "completed"          → 接続成功。認証失敗カウンタを 0 に戻す。--exec-up を実行。以後は常駐
      State が completed から外れた → 記録し、--exec-down を実行。再接続は wpa_supplicant に任せる
+                                     （4way_handshake / group_handshake は再認証・鍵更新の途中なので除く）
      認証失敗カウンタ ≥ --max-auth-failures → 10. の後始末をして exit 3
      resync カウンタ > 32          → 10. の後始末をして exit 3
      --timeout 到達（一度も completed になっていない） → 10. の後始末をして exit 4
@@ -771,7 +775,7 @@ root のまま hardening で絞る方針（§14.3）。
 | D18 | wpa_supplicant のプロセスは systemd / D-Bus activation に任せ、simwifi は起動しない | `-i -c -B` だけの起動では D-Bus が有効にならない。起動方法を 1 経路に絞る |
 | D19 | SIM 要求には必ず応答する。MAC 不正とローカルエラーには `UMTS-FAIL` を返す | 無応答だと EAP のタイムアウトまで状態が進まない |
 | D20 | 認証失敗が `--max-auth-failures`（既定 3）回連続したら exit 3。`completed` で 0 に戻す | SIM や AAA への試行を繰り返しすぎない。systemd の `Restart=on-failure` と組み合わせる |
-| D21 | 経路は `auto`（AKA → UICC の遅延フォールバック）を既定とし、`--auth-path` で固定もできる | probe を暗黙に実行して SIM を消費することを避ける |
+| D21 | 経路は `auto`（AKA → UICC の遅延フォールバック）を既定とし、`--auth-path` で固定もできる。AKA が AUTN を拒否したときも UICC で確かめ直す | probe を暗黙に実行して SIM を消費することを避ける。正しい AUTN を拒否する MBIM AKA 実装に対応する |
 | D22 | `mbimuicc` を PoC 初版に含める | AKA 非対応のモデムでも動かすため |
 | D23 | E2E 用の Milenage バックエンドは、ビルドタグ `e2e` のときだけ有効にする | SIM 無しで wpa_supplicant 連携を自動テストするため。リリースバイナリには含めない |
 | D24 | probe 結果のキーは `EquipmentIdentifier` | MM の index は挿し直しで変わる |
