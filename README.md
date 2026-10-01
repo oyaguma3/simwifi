@@ -5,6 +5,8 @@ MBIM モードの USB 通信ドングルに挿した SIM を使い、Linux PC �
 EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が USIM に投げたい AUTHENTICATE（RAND / AUTN）を D-Bus で受け取り、MBIM ドングル経由で SIM に解かせて返す。あわせて、モデム検出、NAI 生成、wpa_supplicant への設定投入、状態表示を 1 コマンドで行う。
 
 > **ステータス: PoC**。Soracom Onyx（Quectel EG25-G）と Debian 13 の実機で、EAP-AKA / AKA' の接続・再認証・再同期を確認済み（[docs/COMPAT.md](docs/COMPAT.md)）。
+>
+> 既知の制限: 試した 2 機種（Quectel EG25-G、Sierra Wireless EM7455）とも、Linux では MBIM の AKA コマンドが正しいチャレンジを拒否した（原因は未特定）。EG25-G は UICC Low-Level Access の経路で動作するが、この経路を持たない EM7455 は使えない。
 
 ## 仕組み
 

@@ -35,6 +35,10 @@ type ModemSpec struct {
 	PrimarySlot uint32
 	// SwitchDelay は SetPrimarySimSlot 後にモデムが再出現するまでの時間。
 	SwitchDelay time.Duration
+	// AfterSwitch は SetPrimarySimSlot 後に再出現するモデムの内容を変える（切り替えの失敗の再現用）。
+	AfterSwitch func(*ModemSpec)
+	// FailedReason は State が failed のときの理由（MMModemStateFailedReason）。
+	FailedReason uint32
 }
 
 // DefaultModem は典型的な MBIM ドングル（SIM 1 枚）。
@@ -194,7 +198,7 @@ func (m *fakeModem) modemProps() map[string]dbus.Variant {
 		"EquipmentIdentifier": dbus.MakeVariant(m.spec.IMEI),
 		"DeviceIdentifier":    dbus.MakeVariant("dev-" + m.spec.IMEI),
 		"State":               dbus.MakeVariant(m.spec.State),
-		"StateFailedReason":   dbus.MakeVariant(uint32(0)),
+		"StateFailedReason":   dbus.MakeVariant(m.spec.FailedReason),
 		"UnlockRequired":      dbus.MakeVariant(m.spec.UnlockRequired),
 		"Ports":               dbus.MakeVariant(ports),
 		"PrimaryPort":         dbus.MakeVariant(primary),
@@ -215,6 +219,9 @@ func (m *fakeModem) SetPrimarySimSlot(slot uint32) *dbus.Error {
 	}
 	spec := m.spec
 	spec.PrimarySlot = slot
+	if spec.AfterSwitch != nil {
+		spec.AfterSwitch(&spec)
+	}
 	go func() {
 		m.f.RemoveModem(m.path)
 		time.Sleep(spec.SwitchDelay)

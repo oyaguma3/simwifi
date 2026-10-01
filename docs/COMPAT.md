@@ -5,6 +5,7 @@
 | 製品 | モジュール | FW | MBIM AKA | UICC Low-Level Access | APPLICATION_LIST | MAC 不正時の応答 | 実 SIM での接続 | 確認日 |
 |---|---|---|---|---|---|---|---|---|
 | Soracom Onyx | Quectel EG25-G | EG25GGBR07A08M2G | **応答はするが結果が不正**（正しい AUTN も `AUTH_INCORRECT_AUTN` で拒否） | **対応**（実 SIM で RES / CK / IK を取得） | 非対応 | Status `AUTH_INCORRECT_AUTN` (35) | **成功**（自動経路で UICC に切り替え。EAP-AKA / AKA'、再認証、再同期） | 2026-10-02 |
+| M.2 SIM スロット付き USB アダプタ（2 スロット） | Sierra Wireless EM7455 | SWI9X30C_02.24.03.00 | **応答はするが結果が不正**（正しい AUTN も `AUTH_INCORRECT_AUTN` で拒否。AMF に関係なし） | **非対応**（`NO_DEVICE_SUPPORT`） | 非対応 | Status `AUTH_INCORRECT_AUTN` (35) | **不可**（使える経路が無い） | 2026-10-02 |
 
 ## 機種ごとのメモ
 
@@ -16,6 +17,32 @@
 - **MBIM AKA（Auth サービス AKA CID）は使えない。** PoC サーバーの正しいチャレンジに対しても `AUTH_INCORRECT_AUTN` を返す。同じチャレンジを UICC Low-Level Access の APDU で USIM に直接送ると受理され、wpa_supplicant はサーバーの AT_MAC の検証に合格した（＝ SIM とサーバーの鍵は一致している）。既定の自動経路（`--auth-path auto`）は、MBIM AKA が AUTN を拒否すると UICC で確かめ直して切り替えるので、指定なしで動く（2026-10-02 に対応）。`--auth-path uicc` で固定してもよい
 - `probe` はダミー AUTN への応答しか見ないため、この不具合を検出できない（ダミーには正しく `AUTH_INCORRECT_AUTN` を返すので「対応」と判定される）
 - MBIM AKA は同期失敗（SQN ずれ）のチャレンジにも `AUTH_INCORRECT_AUTN` を返し、AUTS を返さない。UICC 経路では応答タグ `DC` で AUTS が返る
+
+### Sierra Wireless EM7455（M.2 SIM スロット付き USB アダプタ）
+
+- ModemManager の plugin は `sierra`、ドライバは `cdc_mbim`。MBIM ポートは `cdc-wdm0`。MBIM の中で QMI も使える（`MBIM device is QMI capable`）
+- ModemManager は `unlock-required: sim-pin2` を報告する。PIN2 は利用を妨げないので、simwifi もロックとはみなさない（2026-10-02 に修正）
+- UICC Low-Level Access は非対応なので、USIM への経路は MBIM AKA だけ
+- MBIM 標準のスロット操作（MS Basic Connect Extensions の slot mappings / slot info）は非対応。ModemManager は QMI でスロットを切り替える
+- ModemManager はスロットを 2 つと報告するが、アダプタの 2 つ目のスロットの SIM は見えない（QMI の slot status でも物理スロット 2 のカード状態は `unknown`）
+- **MBIM AKA は使えない**（2026-10-02）。PoC サーバーの正しいチャレンジを `AUTH_INCORRECT_AUTN` で拒否する。AMF を `8000`（分離ビット ON）から `0000` に変えても同じだったので、分離ビットが原因ではない
+- 同じチャレンジ（AMF `0000`）を `qmicli --uim-send-apdu`（QMI over MBIM、論理チャネル）で USIM に直接送ると、SW `61 35`（53 バイトの応答あり＝成功応答 `DB` + RES / CK / IK / Kc の長さ）が返った。SIM はチャレンジを受理している
+- QMI の論理チャネル経由の APDU では、`61 xx` の GET RESPONSE をモデムが自動では行わない
+- **Windows では、同じ EM7455 と SIM で EAP-AKA が通る**（AMF `0000`、ユーザー確認）。USBPcap で記録した Windows の AKA 要求は、simwifi が同じ RAND / AUTN で作る要求とバイト単位で同一。Windows の応答は Status `SUCCESS`、RES 長 8
+- Windows でも、AKA の時点のモデムはソフトウェア無線オフ・網に未登録。Windows は AKA の直前に `DEVICE_SERVICE_SUBSCRIBE_LIST` で Auth サービス（AKA_AUTH、SIM_AUTH）を購読している
+- Linux で切り分けた結果（いずれも、MBIM AKA に拒否されてまだ有効なチャレンジを使用）:
+  - Auth サービスを購読した状態で送る → `AUTH_INCORRECT_AUTN`（購読は無関係）
+  - ModemManager を止め、mbim-proxy がデバイスを開き直した直後に送る → `NOT_INITIALIZED`
+  - ModemManager を止め、SIM の準備完了（`initialized`）を待って送る → `AUTH_INCORRECT_AUTN`（ModemManager の同時操作は無関係）
+  - ModemManager と mbim-proxy を止め、`/dev/cdc-wdm0` を直接開いて（`OPEN` → SIM の準備完了を確認 → AKA）送る → `AUTH_INCORRECT_AUTN`（mbim-proxy は無関係）
+- **結論（2026-10-02 時点）: Linux では、EM7455 の MBIM AKA は正しいチャレンジも拒否し、原因は特定できていない。** 要求のバイト列、AMF、Auth の購読、SIM・無線・登録の状態、ModemManager、mbim-proxy は、いずれも原因ではなかった。残る違いは Windows のドライバが接続時に行う初期化手順だが、PoC としてはここで調査を区切った
+- この型番（USB ID `1199:9079`）は Lenovo 向けで FCC ロックがかかっている。ModemManager の解除スクリプト（`fcc-unlock.available.d/1199:9079`）は既定で無効。今回だけ `qmicli --dms-set-fcc-authentication` で解除したが、無線のオンは `Failure` / `InvalidTransition` で失敗した
+- USIM アプリは 1 つ（AID `A0000000871002FFFFFFFF8903020000`）。モデムの Primary GW セッションもこのアプリ
+- **スロット 2 への切り替えで回復不能に近い状態になった**（2026-10-02）:
+  1. simwifi が `SetPrimarySimSlot(2)` を要求 → モデムは作り直されたが `failed`（`sim-missing`）。QMI では物理スロット 1 がアクティブのまま、カードは `power-down` のエラー状態
+  2. ModemManager は「今はスロット 1」と認識しているため、`mmcli --set-primary-sim-slot=1` は何もしない
+  3. `mmcli --reset` は成功を返したが再起動せず、QMI にも応答しなくなった
+  4. アダプタを USB から抜き挿しして復旧（スロット 1 のカードで正常に戻った）
 
 ## 実機テストの記録
 

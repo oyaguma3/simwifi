@@ -33,6 +33,10 @@ const (
 
 	LockUnknown uint32 = 0
 	LockNone    uint32 = 1
+	LockSIMPIN  uint32 = 2
+	LockSIMPIN2 uint32 = 3
+	LockSIMPUK  uint32 = 4
+	LockSIMPUK2 uint32 = 5
 
 	StateFailed       int32 = -1
 	StateUnknown      int32 = 0
@@ -95,8 +99,53 @@ func (m Modem) MBIMDevice() (string, error) {
 }
 
 // Locked は PIN などでロックされているかを返す。
+// SIM-PIN2 / SIM-PUK2 は通常の利用を妨げないので、ModemManager と同じくロックとみなさない
+// （Sierra EM7455 は SIM-PIN2 を報告することがある）。
 func (m Modem) Locked() bool {
-	return m.State == StateLocked || (m.UnlockRequired != LockNone && m.UnlockRequired != LockUnknown)
+	switch m.UnlockRequired {
+	case LockUnknown, LockNone, LockSIMPIN2, LockSIMPUK2:
+		return m.State == StateLocked
+	}
+	return true
+}
+
+// StateName は MMModemState の名前を返す。
+func StateName(s int32) string {
+	names := map[int32]string{-1: "failed", 0: "unknown", 1: "initializing", 2: "locked", 3: "disabled",
+		4: "disabling", 5: "enabling", 6: "enabled", 7: "searching", 8: "registered", 9: "disconnecting",
+		10: "connecting", 11: "connected"}
+	if n, ok := names[s]; ok {
+		return n
+	}
+	return fmt.Sprint(s)
+}
+
+// FailedReasonName は MMModemStateFailedReason の名前を返す。
+func FailedReasonName(r uint32) string {
+	names := []string{"none", "unknown", "sim-missing", "sim-error", "unknown-capabilities", "esim-without-profiles"}
+	if int(r) < len(names) {
+		return names[r]
+	}
+	return fmt.Sprint(r)
+}
+
+// StateString は状態を表示用の文字列にする（failed なら理由を付ける）。
+func (m Modem) StateString() string {
+	if m.State == StateFailed {
+		return "failed (" + FailedReasonName(m.StateFailedReason) + ")"
+	}
+	return StateName(m.State)
+}
+
+// LockName は MMModemLock の名前を返す。
+func LockName(l uint32) string {
+	names := []string{"unknown", "none", "sim-pin", "sim-pin2", "sim-puk", "sim-puk2", "ph-sp-pin", "ph-sp-puk",
+		"ph-net-pin", "ph-net-puk", "ph-sim-pin", "ph-corp-pin", "ph-corp-puk", "ph-fsim-pin", "ph-fsim-puk",
+		"ph-netsub-pin", "ph-netsub-puk"}
+	if int(l) < len(names) {
+		return names[l]
+	}
+	return fmt.Sprint(l)
 }
 
 // SIM は MM の Sim オブジェクトの情報。

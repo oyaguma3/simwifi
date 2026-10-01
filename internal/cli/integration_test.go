@@ -18,6 +18,7 @@ import (
 	"github.com/oyaguma3/simwifi/internal/lock"
 	"github.com/oyaguma3/simwifi/internal/mbim"
 	"github.com/oyaguma3/simwifi/internal/mbim/mbimtest"
+	"github.com/oyaguma3/simwifi/internal/modem"
 	"github.com/oyaguma3/simwifi/internal/modem/mmtest"
 	"github.com/oyaguma3/simwifi/internal/simauth/milenage"
 	"github.com/oyaguma3/simwifi/internal/supplicant/wpatest"
@@ -221,6 +222,42 @@ func TestConnectSlotSwitch(t *testing.T) {
 		done, _, errb := w.runAsync(t.Context(), "connect", "--iface", "wlan0", "--ssid", "corp", "--sim-slot", "2")
 		if code := waitCode(t, done, errb); code != int(CodePrecondition) {
 			t.Fatalf("exit code %d; stderr:\n%s", code, errb.String())
+		}
+	})
+	t.Run("empty slot is refused", func(t *testing.T) {
+		empty := spec
+		empty.Slots = []*mmtest.SIMSpec{spec.Slots[1], nil}
+		w := newWorld(t, worldOptions{aka: true, spec: &empty})
+		before := w.mm.Modems()
+		done, _, errb := w.runAsync(t.Context(), "connect", "--iface", "wlan0", "--ssid", "corp", "--sim-slot", "2", "--switch-slot")
+		if code := waitCode(t, done, errb); code != int(CodePrecondition) {
+			t.Fatalf("exit code %d; stderr:\n%s", code, errb.String())
+		}
+		if !strings.Contains(errb.String(), "SIM slot 2 is empty") {
+			t.Errorf("stderr:\n%s", errb.String())
+		}
+		if after := w.mm.Modems(); len(after) != 1 || after[0] != before[0] {
+			t.Errorf("modem must not be switched: before %v, after %v", before, after)
+		}
+	})
+	t.Run("switch fails and the modem comes back failed", func(t *testing.T) {
+		broken := spec
+		// EM7455 で観測した状態: スロットは 1 のまま、SIM が見えず failed (sim-missing)
+		broken.AfterSwitch = func(s *mmtest.ModemSpec) {
+			s.PrimarySlot = 1
+			s.State = modem.StateFailed
+			s.FailedReason = 2
+		}
+		w := newWorld(t, worldOptions{aka: true, spec: &broken})
+		slotSwitchTimeout = time.Second
+		done, _, errb := w.runAsync(t.Context(), "connect", "--iface", "wlan0", "--ssid", "corp", "--sim-slot", "2", "--switch-slot")
+		if code := waitCode(t, done, errb); code != int(CodePrecondition) {
+			t.Fatalf("exit code %d; stderr:\n%s", code, errb.String())
+		}
+		for _, want := range []string{"slot 1 active (wanted 2)", "state failed (sim-missing)", "power-cycle"} {
+			if !strings.Contains(errb.String(), want) {
+				t.Errorf("stderr should contain %q:\n%s", want, errb.String())
+			}
 		}
 	})
 	t.Run("with --switch-slot", func(t *testing.T) {

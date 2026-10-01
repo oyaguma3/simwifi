@@ -231,6 +231,14 @@ func TestNonFatal(t *testing.T) {
 			t.Fatalf("fatal=%+v stale=%v", r.Fatal(), r.StaleInterface)
 		}
 	})
+	t.Run("SIM-PIN2 is not a lock", func(t *testing.T) {
+		e := newEnv(t)
+		e.mm.modems[0].State = modem.StateDisabled
+		e.mm.modems[0].UnlockRequired = modem.LockSIMPIN2
+		if r := e.collect(t); len(r.Fatal()) != 0 {
+			t.Fatalf("fatal=%+v", r.Fatal())
+		}
+	})
 	t.Run("NM not running", func(t *testing.T) {
 		e := newEnv(t)
 		e.nm = NMInfo{}

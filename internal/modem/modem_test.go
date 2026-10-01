@@ -97,6 +97,11 @@ func TestLocked(t *testing.T) {
 		{modem.StateLocked, 2, true},
 		{modem.StateInitializing, modem.LockUnknown, false},
 		{modem.StateDisabled, 2, true},
+		// SIM-PIN2 / SIM-PUK2 は利用を妨げない（Sierra EM7455 の実機で SIM-PIN2 を観測）
+		{modem.StateDisabled, modem.LockSIMPIN2, false},
+		{modem.StateDisabled, modem.LockSIMPUK2, false},
+		{modem.StateLocked, modem.LockSIMPIN2, true},
+		{modem.StateDisabled, modem.LockSIMPUK, true},
 	} {
 		if got := (modem.Modem{State: tt.state, UnlockRequired: tt.unlock}).Locked(); got != tt.want {
 			t.Errorf("state=%d unlock=%d: Locked = %v", tt.state, tt.unlock, got)
@@ -173,5 +178,26 @@ func TestWaitRemovedOtherModem(t *testing.T) {
 	defer cancel2()
 	if err := w.WaitRemoved(ctx2, dbus.ObjectPath(a)); err != nil {
 		t.Fatal(err)
+	}
+}
+
+func TestLockName(t *testing.T) {
+	if modem.LockName(3) != "sim-pin2" || modem.LockName(2) != "sim-pin" || modem.LockName(99) != "99" {
+		t.Fatal("LockName mismatch")
+	}
+}
+
+func TestStateString(t *testing.T) {
+	for _, tt := range []struct {
+		m    modem.Modem
+		want string
+	}{
+		{modem.Modem{State: modem.StateDisabled}, "disabled"},
+		{modem.Modem{State: modem.StateFailed, StateFailedReason: 2}, "failed (sim-missing)"},
+		{modem.Modem{State: 42}, "42"},
+	} {
+		if got := tt.m.StateString(); got != tt.want {
+			t.Errorf("StateString = %q, want %q", got, tt.want)
+		}
 	}
 }

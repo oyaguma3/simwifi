@@ -319,7 +319,7 @@ MM の D-Bus クライアント（`org.freedesktop.ModemManager1`）。
 - `ObjectManager.GetManagedObjects` でモデムを列挙する
 - `Modem` のプロパティ
   - `Manufacturer`, `Model`, `Revision`, `EquipmentIdentifier`（IMEI など。probe 結果のキーに使う）
-  - `State`（`i`。`LOCKED = 2`、`FAILED = -1` など）、`StateFailedReason`、`UnlockRequired`（`u`。`NONE = 1` 以外はロック中）
+  - `State`（`i`。`LOCKED = 2`、`FAILED = -1` など）、`StateFailedReason`、`UnlockRequired`（`u`。`NONE` / `SIM_PIN2` / `SIM_PUK2` 以外はロック中。PIN2 / PUK2 は ModemManager と同じく利用を妨げないものとして扱う）
   - `Ports`（`a(su)`）: 種別 `MBIM (7)` のポート名に `/dev/` を付けて cdc-wdm のパスを得る。`PrimaryPort`
   - `Sim`、`SimSlots`（`ao`。空スロットは `/`）、`PrimarySimSlot`（`u`。1 始まり。0 はマルチスロット非対応）
 - `Sim` のプロパティ: `Active`, `Imsi`, `SimIdentifier`（ICCID）, `OperatorIdentifier`（MCC+MNC。EF_AD の MNC 長を反映済み）, `OperatorName`
@@ -417,7 +417,7 @@ E2E ビルド専用（ビルドタグ `e2e` のときだけ存在する。リリ
 | MM の存在とバージョン | D-Bus `ModemManager1.Version` | MM が無い |
 | モデム一覧、型番、FW、State | MM `Modem` | モデムが 0 台、複数台で `--modem` 未指定、`State == FAILED` |
 | SIM スロット一覧、アクティブスロット、SIM 状態 | MM `Modem.SimSlots` / `PrimarySimSlot` / `Sim` | SIM が無い |
-| PIN ロック | MM `Modem.UnlockRequired` / `State == LOCKED` | `UnlockRequired` が `NONE` 以外 |
+| PIN ロック | MM `Modem.UnlockRequired` / `State == LOCKED` | `UnlockRequired` が `NONE` / `SIM_PIN2` / `SIM_PUK2` 以外、または `State == LOCKED` |
 | IMSI（マスク）、ICCID、MCC / MNC | MM `Sim` | IMSI を取得できない。`OperatorIdentifier` が空で `--realm` も無い |
 | 生成される NAI | `nai` | — |
 | mbim-proxy への接続可否 | 実際に接続し、`DEVICE_CAPS` を Query する | 接続できない、拒否された |
@@ -594,6 +594,8 @@ MBIM の `AKA` にも UICC APDU にもスロットを指定するフィールド
 
 - `--sim-slot N` は「N がアクティブであること」の要求と解釈する
 - 非アクティブなら既定ではエラーにする。`--switch-slot` を付けると `SetPrimarySimSlot(N)` を実行する。切替はモデムの再起動に相当し、セルラー接続は切れる
+- ModemManager がスロット N を空き（`SimSlots` の要素が `/`）と報告している場合は、`--switch-slot` があっても切り替えずに exit 2 にする。空きスロットへの切り替えで、電源を入れ直すまでモデムが使えなくなった実例がある（Sierra EM7455。docs/COMPAT.md）
+- 切り替え後にモデムが期待どおりに戻らなかった場合（タイムアウト）は、モデムを問い合わせ直し、再出現の有無、アクティブなスロット、状態（`failed` なら理由）をエラーに添える
 - `PrimarySimSlot == 0`（マルチスロット非対応）のモデムで `--sim-slot` を指定した場合は、1 のときだけ受け付ける
 - 「セルラーは SIM1、Wi-Fi 認証は SIM2」という使い方は、この方式ではできない。必要なら 2 台目のドングルを使うか、PC/SC リーダーと wpa_supplicant 標準の `pcsc` 経路を使う（`simauth` に実装を追加すれば対応できる）
 

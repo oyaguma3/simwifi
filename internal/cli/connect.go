@@ -2,6 +2,7 @@ package cli
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"slices"
@@ -151,6 +152,12 @@ func ensureSlot(ctx context.Context, log *slog.Logger, sys *system, r *status.Re
 	if m.PrimarySimSlot == want {
 		return r, nil
 	}
+	// 空きスロットへ切り替えると、電源を入れ直すまでモデムが使えなくなることがある
+	// （Sierra EM7455 で実際に起きた。docs/COMPAT.md）
+	if !modem.ValidSIM(m.SimSlots[want-1]) {
+		return nil, exitf(CodePrecondition, "SIM slot %d is empty according to ModemManager; not switching "+
+			"(switching to an empty slot can leave the modem unusable until it is power-cycled)", want)
+	}
 	if !doSwitch {
 		return nil, exitf(CodePrecondition, "SIM slot %d is not active (active: %d); add --switch-slot to switch", want, m.PrimarySimSlot)
 	}
@@ -169,7 +176,7 @@ func ensureSlot(ctx context.Context, log *slog.Logger, sys *system, r *status.Re
 	imei := m.EquipmentIdentifier
 	nm, err := w.WaitAdded(ctx, func(x modem.Modem) bool { return x.EquipmentIdentifier == imei && x.PrimarySimSlot == want })
 	if err != nil {
-		return nil, withCode(CodePrecondition, err)
+		return nil, withCode(CodePrecondition, describeSlotSwitch(context.WithoutCancel(ctx), sys, imei, want, err))
 	}
 	log.Info("SIM slot switched", "modem", string(nm.Path), "slot", want)
 
@@ -187,4 +194,26 @@ func ensureSlot(ctx context.Context, log *slog.Logger, sys *system, r *status.Re
 			log.Debug("waiting for the modem to become ready", "pending", r.Fatal()[0].Name)
 		}
 	}
+}
+
+// describeSlotSwitch は、スロット切り替え後の待ちが失敗したときに、モデムの現状を添えたエラーを作る。
+func describeSlotSwitch(ctx context.Context, sys *system, imei string, want uint32, err error) error {
+	ctx, cancel := context.WithTimeout(ctx, 10*time.Second)
+	defer cancel()
+	modems, lerr := sys.mm.Modems(ctx)
+	if lerr != nil {
+		return fmt.Errorf("%w (cannot query ModemManager: %v)", err, lerr)
+	}
+	for _, x := range modems {
+		if x.EquipmentIdentifier != imei {
+			continue
+		}
+		msg := fmt.Sprintf("%v; the modem is back as %s with slot %d active (wanted %d), state %s",
+			err, x.Path, x.PrimarySimSlot, want, x.StateString())
+		if x.State == modem.StateFailed {
+			msg += "; power-cycle the modem (unplug and replug) if it does not recover"
+		}
+		return errors.New(msg)
+	}
+	return fmt.Errorf("%w; the modem has not reappeared on ModemManager", err)
 }

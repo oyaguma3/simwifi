@@ -200,9 +200,9 @@ func collectModem(ctx context.Context, d Deps, o Options, r *Report) {
 	}
 	r.Modem = &m
 	desc := fmt.Sprintf("[%s] %s %s (FW %s, IMEI %s) state=%s", m.Index(), m.Manufacturer, m.Model, m.Revision,
-		logging.MaskIMSI(m.EquipmentIdentifier), stateName(m.State))
+		logging.MaskIMSI(m.EquipmentIdentifier), m.StateString())
 	if m.State == modem.StateFailed {
-		r.fatal(CheckModem, "%s, failed reason %d", desc, m.StateFailedReason)
+		r.fatal(CheckModem, "%s", desc)
 		return
 	}
 	r.ok(CheckModem, "%s", desc)
@@ -246,7 +246,7 @@ func collectModem(ctx context.Context, d Deps, o Options, r *Report) {
 	}
 
 	if m.Locked() {
-		r.fatal(CheckPIN, "SIM is locked (unlock required: %d); unlock it with ModemManager first", m.UnlockRequired)
+		r.fatal(CheckPIN, "SIM is locked (unlock required: %s); unlock it with ModemManager first", modem.LockName(m.UnlockRequired))
 		return
 	}
 	r.ok(CheckPIN, "not locked")
@@ -378,16 +378,6 @@ func collectWPA(ctx context.Context, d Deps, o Options, r *Report) {
 	default:
 		r.fatal(CheckIface, "%s is already used by another wpa_supplicant client (state %s)", o.Iface, info.State)
 	}
-}
-
-func stateName(s int32) string {
-	names := map[int32]string{-1: "failed", 0: "unknown", 1: "initializing", 2: "locked", 3: "disabled",
-		4: "disabling", 5: "enabling", 6: "enabled", 7: "searching", 8: "registered", 9: "disconnecting",
-		10: "connecting", 11: "connected"}
-	if n, ok := names[s]; ok {
-		return n
-	}
-	return fmt.Sprint(s)
 }
 
 func orDash(s string) string {
