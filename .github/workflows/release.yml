@@ -1,0 +1,48 @@
+name: release
+
+# v で始まるタグ（例: v0.1.0、v0.2.0-rc1）を push すると、テストを通してから
+# GitHub Releases に静的バイナリ（amd64 / arm64）とチェックサムを添付する。
+# ハイフンを含むタグ（v0.2.0-rc1 など）はプレリリースにする。
+on:
+  push:
+    tags: ["v*"]
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-go@v7
+        with:
+          go-version-file: go.mod
+      - name: Check tag format
+        run: |
+          if ! [[ "$GITHUB_REF_NAME" =~ ^v[0-9]+\.[0-9]+\.[0-9]+(-[0-9A-Za-z.-]+)?$ ]]; then
+            echo "::error::tag must look like v1.2.3 or v1.2.3-rc1: $GITHUB_REF_NAME"
+            exit 1
+          fi
+      - name: Install dbus-daemon
+        run: sudo apt-get update && sudo apt-get install -y dbus
+      - name: Test
+        run: |
+          go test -race ./...
+          go test -tags e2e ./...
+      - name: Build packages
+        run: make dist VERSION="$GITHUB_REF_NAME"
+      - name: Check version string
+        run: |
+          tar -xzOf "dist/simwifi-$GITHUB_REF_NAME-linux-amd64.tar.gz" "simwifi-$GITHUB_REF_NAME-linux-amd64/simwifi" > /tmp/simwifi
+          chmod +x /tmp/simwifi
+          /tmp/simwifi version | tee /dev/stderr | grep -q "^simwifi $GITHUB_REF_NAME "
+      - name: Publish release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          flags=(--verify-tag --generate-notes --title "simwifi $GITHUB_REF_NAME")
+          if [[ "$GITHUB_REF_NAME" == *-* ]]; then
+            flags+=(--prerelease)
+          fi
+          gh release create "$GITHUB_REF_NAME" dist/*.tar.gz dist/SHA256SUMS "${flags[@]}"

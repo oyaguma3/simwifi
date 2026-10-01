@@ -4,7 +4,7 @@ MBIM モードの USB 通信ドングルに挿した SIM を使い、Linux PC �
 
 EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が USIM に投げたい AUTHENTICATE（RAND / AUTN）を D-Bus で受け取り、MBIM ドングル経由で SIM に解かせて返す。あわせて、モデム検出、NAI 生成、wpa_supplicant への設定投入、状態表示を 1 コマンドで行う。
 
-> **ステータス: PoC（開発中）**。fake を使った自動テストは揃っているが、実機（ドングル・SIM・AP）での検証はまだ行っていない。
+> **ステータス: PoC**。Soracom Onyx（Quectel EG25-G）と Debian 13 の実機で、EAP-AKA / AKA' の接続・再認証・再同期を確認済み（[docs/COMPAT.md](docs/COMPAT.md)）。
 
 ## 仕組み
 
@@ -12,7 +12,7 @@ EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が
 AAA ─ AP ─ wlan0 ─ wpa_supplicant ─(D-Bus: NetworkRequest "SIM")─ simwifi ─ mbim-proxy ─ MBIM ドングル ─ USIM
 ```
 
-- USIM への経路は MBIM の Auth `AKA` CID が主経路。非対応のモデムでは MS UICC Low-Level Access（論理チャネル上の APDU）に自動で切り替える
+- USIM への経路は MBIM の Auth `AKA` CID が主経路。非対応のモデムや、`AKA` CID が正しく動かないモデム（Quectel EG25-G など）では、MS UICC Low-Level Access（論理チャネル上の APDU）に自動で切り替える
 - 詳細は [docs/DESIGN.md](docs/DESIGN.md)
 
 ## 前提
@@ -29,9 +29,23 @@ Go 1.27 以降。外部依存は `github.com/godbus/dbus/v5` だけで、静的�
 
 ```bash
 make build        # bin/simwifi
-make build-all    # dist/simwifi-linux-{amd64,arm64}
+make dist         # dist/simwifi-<版>-linux-{amd64,arm64}.tar.gz と SHA256SUMS
 make test         # 単体テスト（dbus-daemon があれば D-Bus の fake を使うテストも走る）
 ```
+
+## インストール
+
+[GitHub Releases](https://github.com/oyaguma3/simwifi/releases) から、アーキテクチャに合った tar.gz と `SHA256SUMS` を取得する。
+
+```bash
+sha256sum -c --ignore-missing SHA256SUMS
+tar -xzf simwifi-<版>-linux-amd64.tar.gz
+sudo install -m 0755 simwifi-<版>-linux-amd64/simwifi /usr/local/bin/simwifi
+```
+
+systemd で常駐させる場合は、同梱の `contrib/` の各ファイルを使う（`simwifi@.service` は `/etc/systemd/system/`、環境変数ファイルは `/etc/simwifi/<iface>.env`、logrotate 設定は `/etc/logrotate.d/simwifi`）。
+
+リリースは `v1.2.3` 形式のタグを push すると GitHub Actions が作る（ハイフン付きのタグはプレリリース）。
 
 ## 使い方
 

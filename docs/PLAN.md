@@ -25,9 +25,9 @@
 | M4 | 完了 | fake wpa_supplicant を相手に `connect` 全体を 1 プロセス内で通す統合テストあり |
 | M5 | 完了 | ミニ PC で E2E 6 シナリオすべて合格（2026-10-02） |
 | M6 | 完了 | 複数スロットの切替は対象機が単一スロットのため未実施。実 SIM と実 AP で EAP-AKA / AKA' の接続、再認証、再同期（AUTS）に成功。EG25-G の MBIM AKA は正しい AUTN も拒否するため、自動経路が UICC で確かめ直して切り替える |
-| M7 | 一部完了 | `contrib/`、README は作成済み。リリースワークフローは未 |
+| M7 | 完了 | `contrib/`、README、リリースワークフロー（`v*` タグで GitHub Releases を作成）。最初のリリースは未実施 |
 
-残り: リリースワークフロー（M7）。
+残り: 最初のリリース（タグの push）。
 
 ---
 
@@ -200,7 +200,7 @@ SIM・ドングル・実 AP なしで、wpa_supplicant との連携を自動テ�
 - [x] `contrib/simwifi@.service`（論点 8 の修正を反映）、`/etc/simwifi/<iface>.env` の例
 - [x] `contrib/simwifi.logrotate`（ファイルを開いたまま書き続けるため `copytruncate`。または SIGHUP で開き直す）
 - [x] README: 前提、NM の unmanaged 化手順、インストール、使用例、トラブルシュート（root、AMF 分離ビット、NM 競合、PIN）
-- [ ] リリースワークフロー: タグ push で静的バイナリ（amd64 / arm64）とチェックサムを添付
+- [x] リリースワークフロー: タグ push で静的バイナリ（amd64 / arm64）とチェックサムを添付
 
 ---
 
