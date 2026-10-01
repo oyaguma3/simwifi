@@ -1,81 +1,131 @@
 # simwifi
 
-MBIM モードの USB 通信ドングルに挿した SIM を使い、Linux PC から EAP-AKA / EAP-AKA' で無線 LAN（WPA2 / WPA3-Enterprise）に接続する CLI ツール。
+[日本語版はこちら / Japanese](README.ja.md)
 
-EAP-AKA の本体は wpa_supplicant が担う。simwifi は、wpa_supplicant が USIM に投げたい AUTHENTICATE（RAND / AUTN）を D-Bus で受け取り、MBIM ドングル経由で SIM に解かせて返す。あわせて、モデム検出、NAI 生成、wpa_supplicant への設定投入、状態表示を 1 コマンドで行う。
+A CLI tool that connects a Linux PC to WPA2/WPA3-Enterprise Wi-Fi with EAP-AKA / EAP-AKA', using the SIM card in a USB cellular modem running in MBIM mode.
 
-> **ステータス: PoC**。Soracom Onyx（Quectel EG25-G）と Debian 13 の実機で、EAP-AKA / AKA' の接続・再認証・再同期を確認済み（[docs/COMPAT.md](docs/COMPAT.md)）。
->
-> Sierra Wireless EM7455 でも、MBIM の AKA コマンドで EAP-AKA / AKA' の接続を確認済み。Qualcomm 系のモデムは AKA の値を逆順（128 ビットのリトルエンディアン）で扱うため、simwifi はバイト順を自動で判別する。
+wpa_supplicant does the actual EAP-AKA work. simwifi receives the USIM AUTHENTICATE requests (RAND / AUTN) that wpa_supplicant emits over D-Bus, has the SIM in the MBIM modem answer them, and passes the results back. It also takes care of the surrounding steps in a single command: modem discovery, building the identity (NAI), configuring wpa_supplicant, and reporting status.
 
-## 仕組み
+> **Status: proof of concept.** Verified on Debian 13 with real hardware, a real SIM and a real EAP-AKA server: EAP-AKA / AKA' connection, re-authentication and re-synchronization (AUTS). See [docs/COMPAT.md](docs/COMPAT.md).
+
+## How it works
 
 ```
-AAA ─ AP ─ wlan0 ─ wpa_supplicant ─(D-Bus: NetworkRequest "SIM")─ simwifi ─ mbim-proxy ─ MBIM ドングル ─ USIM
+AAA ─ AP ─ wlan0 ─ wpa_supplicant ─(D-Bus: NetworkRequest "SIM")─ simwifi ─ mbim-proxy ─ MBIM modem ─ USIM
 ```
 
-- USIM への経路は MBIM の Auth `AKA` CID が主経路（値のバイト順はモデムごとに自動で判別する）。`AKA` CID が使えないモデムでは、MS UICC Low-Level Access（論理チャネル上の APDU）に自動で切り替える
-- 詳細は [docs/DESIGN.md](docs/DESIGN.md)
+- The primary path to the USIM is the MBIM Auth service `AKA` command. Qualcomm-based modems treat the AKA values as 128-bit little-endian integers (RAND / AUTN in, RES / CK / IK / AUTS out, all byte-reversed), so simwifi detects the byte order per modem automatically.
+- If a modem does not support the `AKA` command, simwifi falls back to MS UICC Low-Level Access (APDUs on a logical channel).
+- Design notes: [docs/DESIGN.md](docs/DESIGN.md) (in Japanese).
 
-## 前提
+## Tested hardware
 
-- Debian 13（trixie）以降
-- ModemManager 1.18 以降、libmbim 1.32 以降（mbim-proxy）
-- wpa_supplicant 2.10 以降（`wpa_supplicant.service` で D-Bus 有効、EAP-AKA / AKA' 対応）
-- 無線 LAN は nl80211 ドライバ。NetworkManager を使っている場合は対象の iface を unmanaged にする（`nmcli device set wlan0 managed no`）
-- root で実行する（mbim-proxy が root 以外を拒否するため）
+| Device | Module | MBIM AKA | UICC Low-Level Access | Result |
+|---|---|---|---|---|
+| Soracom Onyx | Quectel EG25-G | Yes (byte-reversed) | Yes | EAP-AKA / AKA', re-authentication, re-synchronization |
+| M.2 USB adapter | Sierra Wireless EM7455 | Yes (byte-reversed) | No | EAP-AKA / AKA' |
 
-## ビルド
+Details and quirks: [docs/COMPAT.md](docs/COMPAT.md) (in Japanese).
 
-Go 1.27 以降。外部依存は `github.com/godbus/dbus/v5` だけで、静的バイナリになる。
+## Requirements
 
-```bash
-make build        # bin/simwifi
-make dist         # dist/simwifi-<版>-linux-{amd64,arm64}.tar.gz と SHA256SUMS
-make test         # 単体テスト（dbus-daemon があれば D-Bus の fake を使うテストも走る）
-```
+- Debian 13 (trixie) or later
+- ModemManager 1.18 or later, libmbim 1.32 or later (`mbim-proxy`)
+- wpa_supplicant 2.10 or later, running with D-Bus enabled (`wpa_supplicant.service`) and built with EAP-AKA / AKA'
+- A wireless interface with an nl80211 driver. If NetworkManager is running, mark the interface as unmanaged: `nmcli device set wlan0 managed no`
+- Run as root (`mbim-proxy` only accepts root)
+- The SIM PIN must be disabled or already unlocked (simwifi does not unlock it)
 
-## インストール
+## Installation
 
-[GitHub Releases](https://github.com/oyaguma3/simwifi/releases) から、アーキテクチャに合った tar.gz と `SHA256SUMS` を取得する。
+Download the tarball for your architecture and `SHA256SUMS` from [GitHub Releases](https://github.com/oyaguma3/simwifi/releases).
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS
-tar -xzf simwifi-<版>-linux-amd64.tar.gz
-sudo install -m 0755 simwifi-<版>-linux-amd64/simwifi /usr/local/bin/simwifi
 ```
 
-systemd で常駐させる場合は、同梱の `contrib/` の各ファイルを使う（`simwifi@.service` は `/etc/systemd/system/`、環境変数ファイルは `/etc/simwifi/<iface>.env`、logrotate 設定は `/etc/logrotate.d/simwifi`）。
-
-リリースは `v1.2.3` 形式のタグを push すると GitHub Actions が作る（ハイフン付きのタグはプレリリース）。
-
-## 使い方
+```bash
+tar -xzf simwifi-<version>-linux-amd64.tar.gz
+```
 
 ```bash
-sudo simwifi status                     # 前提条件の確認（副作用なし）
-sudo simwifi probe                      # モデムの能力確認（SIM の認証を 1 回使う）
-sudo simwifi identity --method akap     # SIM から生成した NAI を表示
+sudo install -m 0755 simwifi-<version>-linux-amd64/simwifi /usr/local/bin/simwifi
+```
+
+To run it as a service, use the files in `contrib/` from the tarball: `simwifi@.service` goes to `/etc/systemd/system/`, the environment file to `/etc/simwifi/<iface>.env` (see `simwifi.env.example`), and the logrotate config to `/etc/logrotate.d/simwifi`. Then:
+
+```bash
+sudo systemctl enable --now simwifi@wlan0
+```
+
+## Usage
+
+```bash
+sudo simwifi status                     # check prerequisites (read-only)
+sudo simwifi probe                      # probe modem capabilities (uses one SIM authentication)
+sudo simwifi identity --method akap     # print the permanent identity (NAI) built from the SIM
 sudo simwifi connect --iface wlan0 --ssid corp-wifi --method aka --exec-up "dhclient -1 -nw wlan0"
 ```
 
-`connect` は前面で常駐し、Ctrl-C で切断して後始末する。常駐させる場合は systemd ユニット（[contrib/simwifi@.service](contrib/simwifi@.service)）を使う。
+`connect` stays in the foreground. Press Ctrl-C (or send SIGTERM) to disconnect and clean up.
 
-終了コード: 0 成功、1 使い方の誤り・内部エラー、2 前提条件 NG、3 認証失敗、4 タイムアウト。
+Main `connect` options:
 
-## トラブルシュート
+| Option | Default | Description |
+|---|---|---|
+| `--ssid` | (required) | SSID to connect to |
+| `--method aka\|akap` | `aka` | EAP-AKA or EAP-AKA' |
+| `--iface` | `wlan0` | Wireless interface |
+| `--realm` | from the SIM | Override the whole NAI realm |
+| `--auth-path auto\|aka\|uicc` | `auto` | USIM access path (`auto` picks a working one) |
+| `--wpa3` | off | Use `WPA-EAP-SHA256` with PMF required |
+| `--timeout` | 60 | Seconds to wait for the connection |
+| `--max-auth-failures` | 3 | Exit after this many consecutive authentication failures |
+| `--exec-up` / `--exec-down` | none | Shell commands to run when connected / disconnected |
+| `--sim-slot N` / `--switch-slot` | none | Require SIM slot N to be active / switch to it if needed |
+| `--log-file`, `-v`, `-vv` | stderr, Info | JSON log file, debug / trace logging |
 
-| 症状 | 確認すること |
+Exit codes:
+
+| Code | Meaning |
 |---|---|
-| `mbim-proxy closed the connection immediately` | root で実行しているか |
-| `wireless interface is already managed by another wpa_supplicant client` | NetworkManager が iface を管理していないか |
-| EAP-AKA' だけ失敗する | 網側の AUTN の AMF で分離ビット（0x8000）が立っているか（wpa_supplicant が検査する） |
-| `cannot determine MCC/MNC` | `--realm` で realm を指定する |
+| 0 | Success (including Ctrl-C / SIGTERM during `connect`) |
+| 1 | Usage error, internal error, or wpa_supplicant disappeared |
+| 2 | Prerequisites not met (see `simwifi status`) |
+| 3 | Authentication failed |
+| 4 | Timed out |
 
-## テスト
+Logs never contain RES / CK / IK / AUTS. The IMSI is masked unless `--log-imsi` is given.
 
-- 単体テスト・統合テスト: `make test`（fake の mbim-proxy / ModemManager / wpa_supplicant を使う）
-- E2E テスト（実機、SIM 不要）: [test/e2e/README.md](test/e2e/README.md)
+## Troubleshooting
 
-## ライセンス
+| Symptom | What to check |
+|---|---|
+| `mbim-proxy closed the connection immediately` | Run as root. |
+| `wireless interface is already managed by another wpa_supplicant client` | Make sure NetworkManager does not manage the interface. |
+| `SIM is locked` | Unlock the SIM with ModemManager (`mmcli -i <sim> --pin=...`) or disable the PIN. |
+| `cannot determine MCC/MNC` | Give the realm explicitly with `--realm`. |
+| Only EAP-AKA' fails | The network must set the AMF separation bit (0x8000) in AUTN; wpa_supplicant checks it. |
+| A Lenovo-branded EM7455 (USB ID `1199:9079`) cannot turn its radio on | It is FCC-locked. simwifi does not need the radio for EAP-AKA, so this does not prevent authentication. |
+
+## Building from source
+
+Go 1.27 or later. The only external dependency is `github.com/godbus/dbus/v5`; the result is a static binary.
+
+```bash
+make build        # bin/simwifi
+make dist         # dist/simwifi-<version>-linux-{amd64,arm64}.tar.gz and SHA256SUMS
+make test         # unit and integration tests (D-Bus fakes need dbus-daemon)
+make lint         # go vet and golangci-lint
+```
+
+Releases are built by GitHub Actions when a tag like `v1.2.3` is pushed (tags with a hyphen become pre-releases).
+
+## Testing
+
+- Unit and integration tests: `make test`. They use fake implementations of mbim-proxy, ModemManager and wpa_supplicant.
+- End-to-end tests on real Linux without a SIM (mac80211_hwsim + hostapd): [test/e2e/README.md](test/e2e/README.md) (in Japanese).
+
+## License
 
 MIT

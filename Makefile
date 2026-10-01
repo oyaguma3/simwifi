@@ -19,7 +19,7 @@ build-e2e:
 	go build $(GOFLAGS_BUILD) -o bin/hlrgw ./test/e2e/hlrgw
 
 # リリース用のパッケージ: dist/simwifi-$(VERSION)-linux-{amd64,arm64}.tar.gz と SHA256SUMS
-# 中身は静的バイナリ、LICENSE、README.md、contrib/。E2E 用のバイナリは含めない。
+# 中身は静的バイナリ、LICENSE、README.md、README.ja.md、contrib/。E2E 用のバイナリは含めない。
 # 同じコミットからは同じ tar.gz ができるよう、所有者・時刻（コミット時刻）・格納順を固定する
 DIST_ARCHES := amd64 arm64
 SOURCE_DATE_EPOCH ?= $(shell git log -1 --format=%ct 2>/dev/null || date +%s)
@@ -30,7 +30,7 @@ dist:
 		name=simwifi-$(VERSION)-linux-$$arch; \
 		mkdir -p dist/$$name; \
 		GOOS=linux GOARCH=$$arch go build $(GOFLAGS_BUILD) -o dist/$$name/simwifi .; \
-		cp LICENSE README.md dist/$$name/; \
+		cp LICENSE README.md README.ja.md dist/$$name/; \
 		cp -r contrib dist/$$name/; \
 		tar -C dist --sort=name --owner=0 --group=0 --numeric-owner --mode=u+rwX,go+rX,go-w --mtime=@$(SOURCE_DATE_EPOCH) \
 			-cf - $$name | gzip -n > dist/$$name.tar.gz; \
