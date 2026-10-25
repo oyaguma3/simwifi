@@ -61,6 +61,8 @@ sudo systemctl enable --now simwifi@wlan0
 
 ## 使い方
 
+すべてのオプション、`connect` の動き、DHCP や systemd などの使い方の例は、[ユーザーガイド](docs/USER_GUIDE.ja.md)を参照してください。
+
 ```bash
 sudo simwifi status                     # 前提条件の確認（読み取りのみ）
 sudo simwifi probe                      # モデムの能力の確認（SIM の認証を 1 回使う）

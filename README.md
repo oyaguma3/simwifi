@@ -61,6 +61,8 @@ sudo systemctl enable --now simwifi@wlan0
 
 ## Usage
 
+For every option, how `connect` behaves, and examples such as DHCP and systemd setups, see the [User Guide](docs/USER_GUIDE.md).
+
 ```bash
 sudo simwifi status                     # check prerequisites (read-only)
 sudo simwifi probe                      # probe modem capabilities (uses one SIM authentication)
