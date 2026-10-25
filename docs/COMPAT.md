@@ -6,6 +6,7 @@
 |---|---|---|---|---|---|---|---|---|
 | Soracom Onyx | Quectel EG25-G | EG25GGBR07A08M2G | **対応（値を逆順で扱う）** | **対応**（実 SIM で RES / CK / IK を取得） | 非対応 | Status `AUTH_INCORRECT_AUTN` (35) | **成功**（MBIM AKA で EAP-AKA / AKA'。UICC 経路でも再認証・再同期まで確認） | 2026-10-02 |
 | M.2 SIM スロット付き USB アダプタ（2 スロット） | Sierra Wireless EM7455 | SWI9X30C_02.24.03.00 | **対応（値を逆順で扱う）** | **非対応**（`NO_DEVICE_SUPPORT`） | 非対応 | Status `AUTH_INCORRECT_AUTN` (35) | **成功**（MBIM AKA、EAP-AKA / AKA'） | 2026-10-02 |
+| PIXELA PIX-MT200e | 不明（USB ID `06b8:3c97`） | PIX-MT200e_MB_V1.01 | **対応（値を逆順で扱う）** | **非対応**（部分 AID の OPEN CHANNEL が `MS_SELECT_FAILED`） | 非対応 | Status `AUTH_INCORRECT_AUTN` (35) | **成功**（MBIM AKA、EAP-AKA / AKA'） | 2026-10-25 |
 
 ## 機種ごとのメモ
 
@@ -46,6 +47,16 @@
   3. `mmcli --reset` は成功を返したが再起動せず、QMI にも応答しなくなった
   4. アダプタを USB から抜き挿しして復旧（スロット 1 のカードで正常に戻った）
 
+### PIXELA PIX-MT200e
+
+- ModemManager の plugin は `generic`、ドライバは `cdc_mbim`。MBIM ポートは `cdc-wdm0`
+- carrier config が `ROW_Generic_3GPP` で、MBIM AKA の値も逆順なので、Qualcomm 系のチップと思われる（未確認）
+- ModemManager は `unlock-required: sim-pin2` を報告する（EM7455 と同じく、利用の妨げにはならない）
+- ModemManager は SIM スロットを 2 つと報告する。スロット 2 の SIM は ICCID `8900000000000000003` で、IMSI は読めない（ダミーか eSIM と思われる）。EM7455 で回復不能に近い状態になったことがあるので、スロットの切り替えは試していない
+- ATR: `3b9f96801f478031e073f6a157574a4d020b611000db`
+- **MBIM AKA は値を逆順（128 ビットのリトルエンディアン）で扱う。** simwifi の自動判別で逆順と判明し、EAP-AKA / AKA' の接続に成功した
+- UICC Low-Level Access は ATR の取得には応じるが、APPLICATION_LIST は `NO_DEVICE_SUPPORT`、部分 AID（`A0000000871002`）での OPEN CHANNEL は `MS_SELECT_FAILED`（SW `6A82`）。完全な AID を知る手段がないため、USIM への経路は MBIM AKA だけ
+
 ## 実機テストの記録
 
 ### 2026-10-02: SSID `SIMAUTH`（WPA2-Enterprise、5180 MHz、PMF なし）、PoC サーバー
@@ -80,4 +91,16 @@
 2. 同じチャレンジを UICC 経路で確かめ直すと、USIM は同期失敗（`DC` + AUTS）を返した。自動経路は UICC に切り替え、AUTS をサーバーへ返した
 3. サーバーが再同期して新しいチャレンジを送り、UICC 経路で受理されて接続した
 
+### 2026-10-25: SSID `U7-Lite-AKA`（WPA2-Enterprise、5300 MHz、PMF 任意）、PoC サーバー（radsecproxy 経由）、PIX-MT200e
 
+AP（UniFi U7 Lite）は RadSec で radsecproxy につながり、その先に PoC サーバーがある。SIM は検証用 SIM（IMSI 999002…、MCC/MNC 999/002）。
+
+| 試行 | 加入者の AMF | 経路 | 結果 |
+|---|---|---|---|
+| EAP-AKA × 2 | `0000` | MBIM AKA | **接続成功**（バイト順は逆順と判別） |
+| EAP-AKA' × 3 | `0000` | MBIM AKA | SIM はチャレンジを受理したが、wpa_supplicant が `AMF separation bit not set` で拒否。終了コード 3 |
+| EAP-AKA' | `8000` | MBIM AKA | **接続成功** |
+| EAP-AKA | `8000` | MBIM AKA | **接続成功** |
+
+- しばらく使わなかった後の最初の接続では、EAP の開始から最初のチャレンジまで約 30 秒かかった（2 回発生）。直後の接続では起きない。30 秒後に EAP が始まり直してから進んでいるので、AP から先の経路（radsecproxy など）で最初の要求が失われていると思われる（未確認）
+- 1 回、接続の直後に AP から切断（reason 6、続いて 7）が届いた。wpa_supplicant は PMKSA キャッシュで約 1.7 秒後につなぎ直し（SIM の要求なし）、simwifi は動き続けた

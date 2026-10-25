@@ -24,6 +24,7 @@ AAA ─ AP ─ wlan0 ─ wpa_supplicant ─(D-Bus: NetworkRequest "SIM")─ simw
 |---|---|---|---|---|
 | Soracom Onyx | Quectel EG25-G | 対応（バイト順は逆） | 対応 | EAP-AKA / AKA'、再認証、再同期 |
 | M.2 USB アダプタ | Sierra Wireless EM7455 | 対応（バイト順は逆） | 非対応 | EAP-AKA / AKA' |
+| PIXELA PIX-MT200e | 不明 | 対応（バイト順は逆） | 非対応 | EAP-AKA / AKA' |
 
 詳細と機種ごとの癖: [docs/COMPAT.md](docs/COMPAT.md)
 
