@@ -120,6 +120,7 @@ make build        # bin/simwifi
 make dist         # dist/simwifi-<版>-linux-{amd64,arm64}.tar.gz と SHA256SUMS
 make test         # 単体テストと統合テスト（D-Bus の fake には dbus-daemon が必要）
 make lint         # go vet と golangci-lint
+make vulncheck    # govulncheck（既知の脆弱性の確認）
 ```
 
 `v1.2.3` 形式のタグを push すると、GitHub Actions がリリースを作ります（ハイフン付きのタグはプレリリースになります）。

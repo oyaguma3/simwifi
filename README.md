@@ -120,6 +120,7 @@ make build        # bin/simwifi
 make dist         # dist/simwifi-<version>-linux-{amd64,arm64}.tar.gz and SHA256SUMS
 make test         # unit and integration tests (D-Bus fakes need dbus-daemon)
 make lint         # go vet and golangci-lint
+make vulncheck    # govulncheck (known vulnerabilities)
 ```
 
 Releases are built by GitHub Actions when a tag like `v1.2.3` is pushed (tags with a hyphen become pre-releases).

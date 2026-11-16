@@ -2,10 +2,11 @@ VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo dev)
 LDFLAGS := -s -w -X github.com/oyaguma3/simwifi/internal/cli.version=$(VERSION)
 GOLANGCI_LINT ?= golangci-lint
 GOLANGCI_LINT_VERSION ?= v2.14.0
+GOVULNCHECK_VERSION ?= v1.9.0
 GOFLAGS_BUILD := -trimpath -ldflags "$(LDFLAGS)"
 export CGO_ENABLED := 0
 
-.PHONY: all build build-e2e dist test lint clean
+.PHONY: all build build-e2e dist test lint vulncheck clean
 
 all: lint test build
 
@@ -50,6 +51,12 @@ lint:
 	go vet -tags e2e ./...
 	$(GOLANGCI_LINT) run ./...
 	$(GOLANGCI_LINT) run --build-tags e2e ./...
+
+# govulncheck（既知の脆弱性のうち、コードから呼ばれるものがあれば失敗する）。
+# 標準ライブラリの脆弱性は、実行に使う Go の版で判定する
+vulncheck:
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) ./...
+	go run golang.org/x/vuln/cmd/govulncheck@$(GOVULNCHECK_VERSION) -tags e2e ./...
 
 clean:
 	rm -rf bin dist
